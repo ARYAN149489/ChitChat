@@ -48,7 +48,7 @@ Built with React, Node.js, Express, Socket.IO, and MongoDB
 
 ```bash
 # Clone repository
-git clone https://github.com/ARYAN149489/ChitChat.git
+git clone https://github.com/ARYAN149489/Synqro.git
 cd ChitChat
 
 # Backend setup
@@ -176,7 +176,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ⭐ Star this repo if you find it helpful!
 
 📧 **Contact:** aryankansal113@gmail.com  
-🐛 **Issues:** [GitHub Issues](https://github.com/ARYAN149489/ChitChat/issues)
+🐛 **Issues:** [GitHub Issues](https://github.com/ARYAN149489/Synqro/issues)
 
 ---
 
