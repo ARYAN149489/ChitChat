@@ -1,17 +1,4 @@
-import {
-  Box,
-  VStack,
-  HStack,
-  Text,
-  Input,
-  Button,
-  Flex,
-  Icon,
-  Avatar,
-  InputGroup,
-  InputRightElement,
-  useToast,
-} from "@chakra-ui/react";
+import {Box,VStack,HStack,Text,Input,Button,Flex,Icon,Avatar,InputGroup,InputRightElement,useToast} from "@chakra-ui/react";
 import { FiSend, FiInfo, FiMessageCircle } from "react-icons/fi";
 import UsersList from "./UsersList";
 import { useEffect, useRef, useState } from "react";
@@ -30,6 +17,11 @@ const ChatArea = ({ selectedGroup, socket }) => {
 
   const currentUser = JSON.parse(localStorage.getItem("userInfo") || {});
 
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, typingUsers]);
+
   useEffect(() => {
     if (selectedGroup && socket) {
       // Reset states when switching groups
@@ -41,21 +33,29 @@ const ChatArea = ({ selectedGroup, socket }) => {
       
       socket.emit('join room', selectedGroup?._id);
       
-      socket.on("message recieved",(newMessage)=>{
-        setMessages((prev)=>[...prev, newMessage])
-      });
-      socket.on("users in room",(users)=>{
+      // Message received handler
+      const handleMessageReceived = (newMessage) => {
+        setMessages((prev) => {
+          // Prevent duplicates by checking if message already exists
+          const exists = prev.some(msg => msg._id === newMessage._id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
+      };
+      
+      const handleUsersInRoom = (users) => {
         setConnectedUsers(users);
-      });
-      socket.on("users joined",(user)=>{
-        setConnectedUsers((prev)=> [...prev, user]);
-      });
-      socket.on("user left",(userId)=>{
-        setConnectedUsers((prev)=> 
-           prev.filter((user) => user?._id !== userId)
-        );
-      });
-      socket.on("notification",(notification)=>{
+      };
+      
+      const handleUserJoined = (user) => {
+        setConnectedUsers((prev) => [...prev, user]);
+      };
+      
+      const handleUserLeft = (userId) => {
+        setConnectedUsers((prev) => prev.filter((user) => user?._id !== userId));
+      };
+      
+      const handleNotification = (notification) => {
         toast({
           title: notification?.title === 'USER_JOINED' ? 'NEW USER' : 'Notification',
           description: notification.message,
@@ -63,31 +63,41 @@ const ChatArea = ({ selectedGroup, socket }) => {
           duration: 3000,
           isClosable: true,
           position: "top-right",
-        })
-      })
-
-      socket.on('user typing',({username})=>{
-        setTypingUsers((prev)=>new Set(prev).add(username));
-      })
-      socket.on('user stop typing',({username})=>{
-        setTypingUsers((prev)=>{
+        });
+      };
+      
+      const handleUserTyping = ({username}) => {
+        setTypingUsers((prev) => new Set(prev).add(username));
+      };
+      
+      const handleUserStopTyping = ({username}) => {
+        setTypingUsers((prev) => {
           const newSet = new Set(prev);
           newSet.delete(username);
           return newSet;
         });
-      })
+      };
+      
+      // Attach listeners
+      socket.on("message recieved", handleMessageReceived);
+      socket.on("users in room", handleUsersInRoom);
+      socket.on("users joined", handleUserJoined);
+      socket.on("user left", handleUserLeft);
+      socket.on("notification", handleNotification);
+      socket.on('user typing', handleUserTyping);
+      socket.on('user stop typing', handleUserStopTyping);
 
-      // clean up
-      return ()=>{
+      // Clean up
+      return () => {
         socket.emit('leave room', selectedGroup?._id);
-        socket.off('message recieved');
-        socket.off('users in room');
-        socket.off('users joined');
-        socket.off('users left');
-        socket.off('notification');
-        socket.off('user typing');
-        socket.off('user stop typing');
-      }
+        socket.off('message recieved', handleMessageReceived);
+        socket.off('users in room', handleUsersInRoom);
+        socket.off('users joined', handleUserJoined);
+        socket.off('user left', handleUserLeft);
+        socket.off('notification', handleNotification);
+        socket.off('user typing', handleUserTyping);
+        socket.off('user stop typing', handleUserStopTyping);
+      };
     }
   }, [selectedGroup, socket, toast])
 
@@ -117,11 +127,15 @@ const ChatArea = ({ selectedGroup, socket }) => {
       },{
         headers:{Authorization: `Bearer ${token}`},
       });
+      
+      // Emit to socket (other users will receive via "message recieved" event)
       socket.emit('new message',{
         ...data,
         groupId: selectedGroup._id
       });
-      setMessages([...messages, data]);
+      
+      // Add to local state immediately (optimistic update)
+      setMessages((prev) => [...prev, data]);
       setNewMessage("");
     } catch (error) {
       toast({
@@ -349,6 +363,8 @@ const ChatArea = ({ selectedGroup, socket }) => {
             </Box>
           ))}
           {renderTypingIndicator()}
+          {/* Invisible div for auto-scroll */}
+          <div ref={messageEndRef} />
         </VStack>
 
         {/* Message Input */}
